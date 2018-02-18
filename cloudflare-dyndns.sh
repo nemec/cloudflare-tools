@@ -13,12 +13,14 @@
 # up to date.                       #
 #####################################
 
+
 set -e
 
-DOMAIN=example.com
-SUBDOMAIN=home
-EMAIL=me@example.com
-API_KEY=my_api_key
+DOMAIN=example.com      # Domain name for your account
+SUBDOMAIN=home          # Subdomain to update to new IP
+                        # - Can also be passed as an argument to the script
+EMAIL=me@example.com    # Cloudflare login email
+API_KEY=my_api_key      # Cloudflare API key
 
 if [ ! -z "$1" ]; then
     SUBDOMAIN="$1";
