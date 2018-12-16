@@ -17,13 +17,15 @@
 set -e
 
 DOMAIN=example.com      # Domain name for your account
-SUBDOMAIN=home          # Subdomain to update to new IP
+SUBDOMAIN_LIST=(        # Subdomain(s) to update to new IP
                         # - Can also be passed as an argument to the script
+    'home'
+)                        
 EMAIL=me@example.com    # Cloudflare login email
 API_KEY=my_api_key      # Cloudflare API key
 
 if [ ! -z "$1" ]; then
-    SUBDOMAIN="$1";
+    SUBDOMAIN_LIST=("$1");
 fi
 
 if [ -z "$(command -v jq)" ]; then
@@ -38,27 +40,36 @@ ZONE_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=$DOMAI
      -H "X-Auth-Key: $API_KEY" \
      -H "Content-Type: application/json" | jq -r ".result[].id")
 
-DATA=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?type=A&name=$SUBDOMAIN.$DOMAIN&page=1&per_page=20&order=type&direction=desc&match=all" \
-     -H "X-Auth-Email: $EMAIL" \
-     -H "X-Auth-Key: $API_KEY" \
-     -H "Content-Type: application/json");
 
-DNS_ID=$(echo $DATA | jq -r ".result[].id");
-OLD_IP=$(echo $DATA | jq -r ".result[].content");
+IDX=0
+while [ "x${SUBDOMAIN_LIST[IDX]}" != "x" ]
+do
+    SUBDOMAIN=${SUBDOMAIN_LIST[IDX]};
 
-DT=$(date "+%Y-%m-%d %H:%M:%S");
-
-if [ $NEW_IP != $OLD_IP ]; then
-    echo "Old IP: $OLD_IP"
-    echo "New IP: $NEW_IP"
-    
-    SUCCESS=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$DNS_ID" \
+    DATA=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?type=A&name=$SUBDOMAIN.$DOMAIN&page=1&per_page=20&order=type&direction=desc&match=all" \
          -H "X-Auth-Email: $EMAIL" \
          -H "X-Auth-Key: $API_KEY" \
-         -H "Content-Type: application/json" \
-         --data "{\"type\":\"A\",\"name\":\"$SUBDOMAIN.$DOMAIN\",\"content\":\"$NEW_IP\"}" | jq -r ".success")
-    echo "Successfully updated $SUBDOMAIN: $SUCCESS"
-else
-    #echo "Same IP for $SUBDOMAIN: $NEW_IP"
-    true
-fi
+         -H "Content-Type: application/json");
+
+    DNS_ID=$(echo $DATA | jq -r ".result[].id");
+    OLD_IP=$(echo $DATA | jq -r ".result[].content");
+
+    DT=$(date "+%Y-%m-%d %H:%M:%S");
+
+    if [ $NEW_IP != $OLD_IP ]; then
+        echo "Old IP: $OLD_IP"
+        echo "New IP: $NEW_IP"
+        
+        SUCCESS=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$DNS_ID" \
+             -H "X-Auth-Email: $EMAIL" \
+             -H "X-Auth-Key: $API_KEY" \
+             -H "Content-Type: application/json" \
+             --data "{\"type\":\"A\",\"name\":\"$SUBDOMAIN.$DOMAIN\",\"content\":\"$NEW_IP\"}" | jq -r ".success")
+        echo "$DT: Successfully updated $SUBDOMAIN: $SUCCESS"
+    else
+        #echo "Same IP for $SUBDOMAIN: $NEW_IP"
+        true
+    fi
+
+    IDX=$(( $IDX + 1 ));
+done
